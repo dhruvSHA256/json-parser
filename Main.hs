@@ -5,7 +5,7 @@
 module Main where
 
 import Control.Applicative
-import Data.Char (digitToInt, isDigit)
+import Data.Char (digitToInt, isDigit, isSpace)
 import qualified Data.HashMap.Strict as HashMap
 import Prelude hiding ((>>=))
 
@@ -64,9 +64,6 @@ charParser toMatch = satisfy (== toMatch)
 stringParser :: String -> Parser String
 stringParser = traverse charParser
 
-digitParser :: Parser JsonValue
-digitParser = JsonNumber . digitToInt <$> satisfy isDigit
-
 nullParser :: Parser JsonValue
 nullParser = JsonNull <$ stringParser "null"
 
@@ -77,8 +74,25 @@ boolParser = f <$> (stringParser "true" <|> stringParser "false")
     f "false" = JsonBool False
     f _ = undefined
 
+ws :: Parser String
+ws = many (charParser ' ' <|> charParser '\n' <|> charParser '\r' <|> charParser '\t')
+
+jsonStringParser :: Parser JsonValue
+jsonStringParser = JsonString <$> (charParser '"' *> (many . satisfy) (/= '"') <* charParser '"')
+
+jsonNumberParser :: Parser JsonValue
+jsonNumberParser = (\ds -> JsonNumber $ read ds) <$> (some . satisfy) isDigit
+
+-- many applys parser till it fails
+sepBy :: Parser a -> Parser b -> Parser [b]
+sepBy sep element = (:) <$> element <*> many (sep *> element) <|> pure []
+
+jsonArray :: Parser JsonValue
+jsonArray = JsonArray <$> (charParser '[' *> ws *> elements <* ws <* charParser ']')
+    where elements = sepBy (ws *> charParser ',' <* ws) jsonParser
+
 jsonParser :: Parser JsonValue
-jsonParser = nullParser <|> boolParser
+jsonParser = nullParser <|> boolParser <|> jsonStringParser <|> jsonNumberParser <|> jsonArray 
 
 main :: IO ()
 main =
