@@ -101,7 +101,14 @@ jsonObject = JsonObject <$> (charParser '{' *> ws *> sepBy (ws *> charParser ','
 jsonValue :: Parser JsonValue
 jsonValue = jsonNull <|> jsonBool <|> jsonString <|> jsonNumber <|> jsonArray  <|> jsonObject
 
+parseJson :: String -> Maybe JsonValue
+parseJson s = case parse jsonValue s of
+  Just (op, "") -> Just op
+  _            -> Nothing
+
 main :: IO ()
-main =
-  do
-    putStrLn "Hello, Haskell!"
+main = do
+    let jsonData = "{\"a\": false, \"c\": null, \"foo\": [\"bar\",1,2,3,{}]}"
+    case parseJson jsonData of
+      Just parsedValue -> print parsedValue
+      Nothing -> putStrLn "Failed to parse JSON"
