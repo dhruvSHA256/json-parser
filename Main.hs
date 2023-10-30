@@ -1,12 +1,11 @@
 {-# LANGUAGE LambdaCase #-}
 {-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
-
 {-# HLINT ignore "Use lambda-case" #-}
+
 module Main where
 
 import Control.Applicative
 import Data.Char (digitToInt, isDigit, isSpace)
-import qualified Data.HashMap.Strict as HashMap
 import Prelude hiding ((>>=))
 
 -- grammer
@@ -15,7 +14,7 @@ data JsonValue
   | JsonBool Bool
   | JsonNumber Int
   | JsonString String
-  | JsonObject (HashMap.HashMap String JsonValue)
+  | JsonObject [(String, JsonValue)]
   | JsonArray [JsonValue]
   | JsonValue
   deriving (Show, Eq)
@@ -64,11 +63,11 @@ charParser toMatch = satisfy (== toMatch)
 stringParser :: String -> Parser String
 stringParser = traverse charParser
 
-nullParser :: Parser JsonValue
-nullParser = JsonNull <$ stringParser "null"
+jsonNull :: Parser JsonValue
+jsonNull = JsonNull <$ stringParser "null"
 
-boolParser :: Parser JsonValue
-boolParser = f <$> (stringParser "true" <|> stringParser "false")
+jsonBool :: Parser JsonValue
+jsonBool = f <$> (stringParser "true" <|> stringParser "false")
   where
     f "true" = JsonBool True
     f "false" = JsonBool False
@@ -77,11 +76,14 @@ boolParser = f <$> (stringParser "true" <|> stringParser "false")
 ws :: Parser String
 ws = many (charParser ' ' <|> charParser '\n' <|> charParser '\r' <|> charParser '\t')
 
-jsonStringParser :: Parser JsonValue
-jsonStringParser = JsonString <$> (charParser '"' *> (many . satisfy) (/= '"') <* charParser '"')
+stringLiteral :: Parser String
+stringLiteral = (charParser '"' *> (many . satisfy) (/= '"') <* charParser '"')
 
-jsonNumberParser :: Parser JsonValue
-jsonNumberParser = (\ds -> JsonNumber $ read ds) <$> (some . satisfy) isDigit
+jsonString :: Parser JsonValue
+jsonString = JsonString <$> stringLiteral
+
+jsonNumber :: Parser JsonValue
+jsonNumber = (\ds -> JsonNumber $ read ds) <$> (some . satisfy) isDigit
 
 -- many applys parser till it fails
 sepBy :: Parser a -> Parser b -> Parser [b]
@@ -89,10 +91,15 @@ sepBy sep element = (:) <$> element <*> many (sep *> element) <|> pure []
 
 jsonArray :: Parser JsonValue
 jsonArray = JsonArray <$> (charParser '[' *> ws *> elements <* ws <* charParser ']')
-    where elements = sepBy (ws *> charParser ',' <* ws) jsonParser
+    where elements = sepBy (ws *> charParser ',' <* ws) jsonValue
 
-jsonParser :: Parser JsonValue
-jsonParser = nullParser <|> boolParser <|> jsonStringParser <|> jsonNumberParser <|> jsonArray 
+jsonObject :: Parser JsonValue
+jsonObject = JsonObject <$> (charParser '{' *> ws *> sepBy (ws *> charParser ',' <* ws) element <* ws <* charParser '}')
+    where
+        element = (\key _ val -> (key, val)) <$> stringLiteral <*> (ws *> charParser ':' <* ws) <*> jsonValue
+
+jsonValue :: Parser JsonValue
+jsonValue = jsonNull <|> jsonBool <|> jsonString <|> jsonNumber <|> jsonArray  <|> jsonObject
 
 main :: IO ()
 main =
