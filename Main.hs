@@ -6,7 +6,7 @@ module Main where
 
 import Control.Applicative
 import Data.Char (digitToInt, isDigit)
-import Data.HashMap.Strict qualified as HashMap
+import qualified Data.HashMap.Strict as HashMap
 import Prelude hiding ((>>=))
 
 -- grammer
@@ -52,15 +52,20 @@ instance Alternative Parser where
   (Parser parser1) <|> (Parser parser2) = Parser $ \input -> do
     parser1 input <|> parser2 input
 
-charParser :: Char -> Parser Char
-charParser toMatch = Parser parser
+satisfy :: (Char -> Bool) -> Parser Char
+satisfy predicate = Parser parseIfSatisfy
   where
-    parser (toCheck : rest)
-      | toCheck == toMatch = Just (toCheck, rest)
-      | otherwise = Nothing
+    parseIfSatisfy (x : xs) = if predicate x then Just (x, xs) else Nothing
+    parseIfSatisfy _ = Nothing
+
+charParser :: Char -> Parser Char
+charParser toMatch = satisfy (== toMatch)
 
 stringParser :: String -> Parser String
 stringParser = traverse charParser
+
+digitParser :: Parser JsonValue
+digitParser = JsonNumber . digitToInt <$> satisfy isDigit
 
 nullParser :: Parser JsonValue
 nullParser = JsonNull <$ stringParser "null"
@@ -72,19 +77,10 @@ boolParser = f <$> (stringParser "true" <|> stringParser "false")
     f "false" = JsonBool False
     f _ = undefined
 
-satisfy :: (Char -> Bool) -> Parser Char
-satisfy p = Parser parseIfSatisfy
-  where
-    parseIfSatisfy (x : xs) = if p x then Just (x, xs) else Nothing
-    parseIfSatisfy _ = Nothing
-
-digitParser :: Parser JsonValue
-digitParser = JsonNumber . digitToInt <$> satisfy isDigit
+jsonParser :: Parser JsonValue
+jsonParser = nullParser <|> boolParser
 
 main :: IO ()
 main =
   do
     putStrLn "Hello, Haskell!"
-
--- https://www.youtube.com/watch?v=LeoDCiu_GB0
--- https://abhinavsarkar.net/posts/json-parsing-from-scratch-in-haskell/
