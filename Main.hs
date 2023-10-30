@@ -1,8 +1,13 @@
+{-# LANGUAGE LambdaCase #-}
+{-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
+
+{-# HLINT ignore "Use lambda-case" #-}
 module Main where
 
 import Control.Applicative
+import Data.Char (isDigit)
 import Data.HashMap.Strict qualified as HashMap
-import Prelude
+import Prelude hiding ((>>=))
 
 -- grammer
 data JsonValue
@@ -68,4 +73,6 @@ boolParser = f <$> (stringParser "true" <|> stringParser "false")
     f _ = undefined
 
 main :: IO ()
-main = putStrLn "Hello, Haskell!"
+main =
+  do
+    putStrLn "Hello, Haskell!"
