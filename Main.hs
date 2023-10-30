@@ -5,7 +5,7 @@
 module Main where
 
 import Control.Applicative
-import Data.Char (isDigit)
+import Data.Char (digitToInt, isDigit)
 import Data.HashMap.Strict qualified as HashMap
 import Prelude hiding ((>>=))
 
@@ -13,7 +13,7 @@ import Prelude hiding ((>>=))
 data JsonValue
   = JsonNull
   | JsonBool Bool
-  | JsonNumber Integer
+  | JsonNumber Int
   | JsonString String
   | JsonObject (HashMap.HashMap String JsonValue)
   | JsonArray [JsonValue]
@@ -72,7 +72,19 @@ boolParser = f <$> (stringParser "true" <|> stringParser "false")
     f "false" = JsonBool False
     f _ = undefined
 
+satisfy :: (Char -> Bool) -> Parser Char
+satisfy p = Parser parseIfSatisfy
+  where
+    parseIfSatisfy (x : xs) = if p x then Just (x, xs) else Nothing
+    parseIfSatisfy _ = Nothing
+
+digitParser :: Parser JsonValue
+digitParser = JsonNumber . digitToInt <$> satisfy isDigit
+
 main :: IO ()
 main =
   do
     putStrLn "Hello, Haskell!"
+
+-- https://www.youtube.com/watch?v=LeoDCiu_GB0
+-- https://abhinavsarkar.net/posts/json-parsing-from-scratch-in-haskell/
