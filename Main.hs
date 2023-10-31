@@ -1,5 +1,6 @@
 {-# LANGUAGE LambdaCase #-}
 {-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
+
 {-# HLINT ignore "Use lambda-case" #-}
 
 module Main where
@@ -63,12 +64,15 @@ charParser toMatch = satisfy (== toMatch)
 stringParser :: String -> Parser String
 stringParser = traverse charParser
 
+-- (<$) :: JsonValue -> Parser String -> Parser JsonValue
 jsonNull :: Parser JsonValue
 jsonNull = JsonNull <$ stringParser "null"
 
+-- (<$>) :: (String -> JsonValue) -> Parser String -> Parser JsonValue
 jsonBool :: Parser JsonValue
 jsonBool = f <$> (stringParser "true" <|> stringParser "false")
   where
+    f :: String -> JsonValue
     f "true" = JsonBool True
     f "false" = JsonBool False
     f _ = undefined
@@ -76,6 +80,8 @@ jsonBool = f <$> (stringParser "true" <|> stringParser "false")
 ws :: Parser String
 ws = many (charParser ' ' <|> charParser '\n' <|> charParser '\r' <|> charParser '\t')
 
+-- (*>) :: Parser Char -> Parser String -> Parser String
+-- (<*) :: Parser String-> Parser Char -> Parser String
 stringLiteral :: Parser String
 stringLiteral = (charParser '"' *> (many . satisfy) (/= '"') <* charParser '"')
 
@@ -89,26 +95,50 @@ jsonNumber = (\ds -> JsonNumber $ read ds) <$> (some . satisfy) isDigit
 sepBy :: Parser a -> Parser b -> Parser [b]
 sepBy sep element = (:) <$> element <*> many (sep *> element) <|> pure []
 
+surroundedBy :: Parser a -> Parser b -> Parser a
+surroundedBy p1 p2 = p2 *> p1 <* p2
+
 jsonArray :: Parser JsonValue
-jsonArray = JsonArray <$> (charParser '[' *> ws *> elements <* ws <* charParser ']')
-    where elements = sepBy (ws *> charParser ',' <* ws) jsonValue
+jsonArray =
+  JsonArray
+    <$> ( charParser '['
+            *> (elements `surroundedBy` ws)
+            <* charParser ']'
+        )
+  where
+    elements = sepBy (charParser ',' `surroundedBy` ws) jsonValue
 
 jsonObject :: Parser JsonValue
-jsonObject = JsonObject <$> (charParser '{' *> ws *> sepBy (ws *> charParser ',' <* ws) element <* ws <* charParser '}')
-    where
-        element = (\key _ val -> (key, val)) <$> stringLiteral <*> (ws *> charParser ':' <* ws) <*> jsonValue
+jsonObject =
+  JsonObject
+    <$> ( charParser '{'
+            *> (sepBy (charParser ',' `surroundedBy` ws) element) `surroundedBy` ws
+            <* charParser '}'
+        )
+  where
+    element =
+      (\key _ val -> (key, val))
+        <$> stringLiteral
+        <*> (charParser ':' `surroundedBy` ws)
+        <*> jsonValue
 
 jsonValue :: Parser JsonValue
-jsonValue = jsonNull <|> jsonBool <|> jsonString <|> jsonNumber <|> jsonArray  <|> jsonObject
+jsonValue =
+  jsonNull
+    <|> jsonBool
+    <|> jsonString
+    <|> jsonNumber
+    <|> jsonArray
+    <|> jsonObject
 
 parseJson :: String -> Maybe JsonValue
 parseJson s = case parse jsonValue s of
   Just (op, "") -> Just op
-  _            -> Nothing
+  _ -> Nothing
 
 main :: IO ()
 main = do
-    let jsonData = "{\"a\": false, \"c\": null, \"foo\": [\"bar\",1,2,3,{}]}"
-    case parseJson jsonData of
-      Just parsedValue -> print parsedValue
-      Nothing -> putStrLn "Failed to parse JSON"
+  let jsonData = "{\"a\": false, \"c\": null, \"foo\": [\"bar\",1,2,3,{}]}"
+  case parseJson jsonData of
+    Just parsedValue -> print parsedValue
+    Nothing -> putStrLn "Failed to parse JSON"
