@@ -1,4 +1,3 @@
-{-# LANGUAGE LambdaCase #-}
 {-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
 
 {-# HLINT ignore "Use lambda-case" #-}
@@ -12,11 +11,11 @@ import Prelude hiding ((>>=))
 -- grammer
 data JsonValue
   = JsonNull
-  | JsonBool Bool
-  | JsonNumber Int
-  | JsonString String
-  | JsonObject [(String, JsonValue)]
-  | JsonArray [JsonValue]
+  | JsonBool !Bool
+  | JsonNumber !Int
+  | JsonString !String
+  | JsonObject ![(String, JsonValue)]
+  | JsonArray ![JsonValue]
   | JsonValue
   deriving (Show, Eq)
 
@@ -74,29 +73,30 @@ stringParser = traverse charParser
 ws :: Parser String
 ws = many (charParser ' ' <|> charParser '\n' <|> charParser '\r' <|> charParser '\t')
 
+-- (*>) :: Parser Char -> Parser String -> Parser String
+-- (<*) :: Parser String-> Parser Char -> Parser String
+stringLiteral :: Parser String
+stringLiteral = (many . satisfy) (/= '"') `surroundedBy` charParser '"'
+
 -- (<$) :: JsonValue -> Parser String -> Parser JsonValue
 jsonNull :: Parser JsonValue
 jsonNull = JsonNull <$ stringParser "null"
 
 -- (<$>) :: (String -> JsonValue) -> Parser String -> Parser JsonValue
+-- take a function (convertToJsonBool) and a functor (our stringParser)
+-- return a new Parser functor which return convertToJsonBool applied to output and rest of input
 jsonBool :: Parser JsonValue
-jsonBool = f <$> (stringParser "true" <|> stringParser "false")
+jsonBool = convertToJsonBool <$> (stringParser "true" <|> stringParser "false")
   where
-    f :: String -> JsonValue
-    f "true" = JsonBool True
-    f "false" = JsonBool False
-    f _ = undefined
-
--- (*>) :: Parser Char -> Parser String -> Parser String
--- (<*) :: Parser String-> Parser Char -> Parser String
-stringLiteral :: Parser String
-stringLiteral = ((many . satisfy) (/= '"')) `surroundedBy` charParser '"'
+    -- a function which converts output of our parser to jsonvalue
+    convertToJsonBool "true" = JsonBool True
+    convertToJsonBool "false" = JsonBool False
 
 jsonString :: Parser JsonValue
 jsonString = JsonString <$> stringLiteral
 
 jsonNumber :: Parser JsonValue
-jsonNumber = (\ds -> JsonNumber $ read ds) <$> (some . satisfy) isDigit
+jsonNumber = JsonNumber . read <$> (some . satisfy) isDigit
 
 jsonArray :: Parser JsonValue
 jsonArray =
@@ -112,7 +112,7 @@ jsonObject :: Parser JsonValue
 jsonObject =
   JsonObject
     <$> ( charParser '{'
-            *> (sepBy (charParser ',' `surroundedBy` ws) element) `surroundedBy` ws
+            *> sepBy (charParser ',' `surroundedBy` ws) element `surroundedBy` ws
             <* charParser '}'
         )
   where
