@@ -58,11 +58,21 @@ satisfy predicate = Parser parseIfSatisfy
     parseIfSatisfy (x : xs) = if predicate x then Just (x, xs) else Nothing
     parseIfSatisfy _ = Nothing
 
+-- many applys parser till it fails
+sepBy :: Parser a -> Parser b -> Parser [b]
+sepBy sep element = (:) <$> element <*> many (sep *> element) <|> pure []
+
+surroundedBy :: Parser a -> Parser b -> Parser a
+surroundedBy p1 p2 = p2 *> p1 <* p2
+
 charParser :: Char -> Parser Char
 charParser toMatch = satisfy (== toMatch)
 
 stringParser :: String -> Parser String
 stringParser = traverse charParser
+
+ws :: Parser String
+ws = many (charParser ' ' <|> charParser '\n' <|> charParser '\r' <|> charParser '\t')
 
 -- (<$) :: JsonValue -> Parser String -> Parser JsonValue
 jsonNull :: Parser JsonValue
@@ -77,26 +87,16 @@ jsonBool = f <$> (stringParser "true" <|> stringParser "false")
     f "false" = JsonBool False
     f _ = undefined
 
-ws :: Parser String
-ws = many (charParser ' ' <|> charParser '\n' <|> charParser '\r' <|> charParser '\t')
-
 -- (*>) :: Parser Char -> Parser String -> Parser String
 -- (<*) :: Parser String-> Parser Char -> Parser String
 stringLiteral :: Parser String
-stringLiteral = (charParser '"' *> (many . satisfy) (/= '"') <* charParser '"')
+stringLiteral = ((many . satisfy) (/= '"')) `surroundedBy` charParser '"'
 
 jsonString :: Parser JsonValue
 jsonString = JsonString <$> stringLiteral
 
 jsonNumber :: Parser JsonValue
 jsonNumber = (\ds -> JsonNumber $ read ds) <$> (some . satisfy) isDigit
-
--- many applys parser till it fails
-sepBy :: Parser a -> Parser b -> Parser [b]
-sepBy sep element = (:) <$> element <*> many (sep *> element) <|> pure []
-
-surroundedBy :: Parser a -> Parser b -> Parser a
-surroundedBy p1 p2 = p2 *> p1 <* p2
 
 jsonArray :: Parser JsonValue
 jsonArray =
