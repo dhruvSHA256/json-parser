@@ -74,23 +74,24 @@ stringParser = traverse charParser
 ws :: Parser String
 ws = many (charParser ' ' <|> charParser '\n' <|> charParser '\r' <|> charParser '\t')
 
+-- (*>) :: Parser Char -> Parser String -> Parser String
+-- (<*) :: Parser String-> Parser Char -> Parser String
+stringLiteral :: Parser String
+stringLiteral = ((many . satisfy) (/= '"')) `surroundedBy` charParser '"'
+
 -- (<$) :: JsonValue -> Parser String -> Parser JsonValue
 jsonNull :: Parser JsonValue
 jsonNull = JsonNull <$ stringParser "null"
 
 -- (<$>) :: (String -> JsonValue) -> Parser String -> Parser JsonValue
+-- take a function (convertToJsonBool) and a functor (our stringParser)
+-- return a new Parser functor which return convertToJsonBool applied to output and rest of input
 jsonBool :: Parser JsonValue
-jsonBool = f <$> (stringParser "true" <|> stringParser "false")
+jsonBool = convertToJsonBool <$> (stringParser "true" <|> stringParser "false")
   where
-    f :: String -> JsonValue
-    f "true" = JsonBool True
-    f "false" = JsonBool False
-    f _ = undefined
-
--- (*>) :: Parser Char -> Parser String -> Parser String
--- (<*) :: Parser String-> Parser Char -> Parser String
-stringLiteral :: Parser String
-stringLiteral = ((many . satisfy) (/= '"')) `surroundedBy` charParser '"'
+    -- a function which converts output of our parser to jsonvalue
+    convertToJsonBool "true" = JsonBool True
+    convertToJsonBool "false" = JsonBool False
 
 jsonString :: Parser JsonValue
 jsonString = JsonString <$> stringLiteral
